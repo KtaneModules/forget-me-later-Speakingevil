@@ -1,1 +1,1 @@
-# forget-me-later
+#[ModKit Wiki](../../wiki)
