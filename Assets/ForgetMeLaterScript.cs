@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -25,6 +25,8 @@ public class ForgetMeLaterScript : MonoBehaviour
     private bool firstsolve;
     private bool repeat;
     private bool armed;
+    private bool transformation = true;
+    private bool tpcorrect;
 
     private static int moduleIDCounter;
     private int moduleID;
@@ -96,31 +98,34 @@ public class ForgetMeLaterScript : MonoBehaviour
 
     private void ButtonPress(int b)
     {
-        if (moduleSolved == false && armed == true)
+        if (moduleSolved == false && armed == true && transformation == false && repeat == false)
         {
             Debug.LogFormat("[Forget Me Later #{0}]Button {1} pressed", moduleID, (b + 1) % 10);
+            buttons[b].AddInteractionPunch(1f);
+            Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
             if (bomb.GetSolvedModuleNames().Where(x => !exempt.Contains(x)).Count() != bomb.GetSolvableModuleNames().Where(x => !exempt.Contains(x)).Count())
             {
                 armed = false;
-                buttons[b].AddInteractionPunch(1f);
-                Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
                 digits[10].text = "X" + intlist[1][solvenum - 2] + intlist[1][solvenum - 1] + intlist[1][solvenum] + "X";
                 if ((b + 1) % 10 != intlist[1][solvenum])
                 {
                     GetComponent<KMBombModule>().HandleStrike();
                     repeat = true;
                 }
+                else
+                {
+                    tpcorrect = true;
+                }
             }
             else
             {
-                buttons[b].AddInteractionPunch(1f);
-                Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
                 if ((b + 1) % 10 != intlist[1][solvenum])
                 {
                     GetComponent<KMBombModule>().HandleStrike();
                 }
                 else
                 {
+                    moduleSolved = true;
                     StartCoroutine(SolveAnim());
                 }
             }
@@ -137,7 +142,8 @@ public class ForgetMeLaterScript : MonoBehaviour
                 buffer = 0;
                 if (bomb.GetSolvedModuleNames().Where(x => !exempt.Contains(x)).Count() + 1 != solvenum)
                 {
-                    solvenum = bomb.GetSolvedModuleNames().Where(x => !exempt.Contains(x)).Count() + 1;
+                    solvenum++;
+                    tpcorrect = false;
                     if (firstsolve == false)
                     {
                         firstsolve = true;
@@ -147,6 +153,10 @@ public class ForgetMeLaterScript : MonoBehaviour
                     }
                     else
                     {
+                        if (transformation == false)
+                        {
+                            StopAllCoroutines();
+                        }
                         if (armed == true)
                         {
                             GetComponent<KMBombModule>().HandleStrike();
@@ -154,14 +164,10 @@ public class ForgetMeLaterScript : MonoBehaviour
                         }
                         if (repeat == true)
                         {
-                            repeat = false;
                             StartCoroutine(Sequence());
-                        }
-                        else
-                        {
-                            NextStage();
-                        }
+                        }                                            
                     }
+                    NextStage();
                 }
             }
         }
@@ -169,15 +175,28 @@ public class ForgetMeLaterScript : MonoBehaviour
 
     void NextStage()
     {
+        if (repeat == false && transformation == false)
+        {
+            if (armed == true)
+            {
+                digits[10].text = "X" + intlist[1][solvenum - 2] + intlist[1][solvenum - 1] + "-X";
+            }
+            else
+            {
+                digits[10].text = "X??-X";
+            }
+        }
         armed = true;
         foreach (Renderer led in leds)
         {
             led.material = ledon[0];
         }
         leds[(solvenum + 8) % 10].material = ledon[1];
-        digits[10].text = "X" + intlist[1][solvenum - 2] + intlist[1][solvenum - 1] + "-X";
         rule = Random.Range(0, 60);
-        digits[11].text = rule.ToString();
+        if (transformation == false && repeat == false)
+        {
+            digits[11].text = rule.ToString();
+        }
         Debug.LogFormat("[Forget Me Later #{0}]At stage {1}, the rule that applied was {2}", moduleID, solvenum - 1, rule);
         switch (rule)
         {
@@ -311,7 +330,7 @@ public class ForgetMeLaterScript : MonoBehaviour
                 break;
             case 32:
                 intlist[1].Add((3 * intlist[1][solvenum - 2]) % 10);
-                Debug.LogFormat("[Forget Me Later #{0}]Second-last input was {2}: 3 * {1} = {2}", moduleID, intlist[2][solvenum - 2], 3 * intlist[1][solvenum - 2]);
+                Debug.LogFormat("[Forget Me Later #{0}]Second-last input was {2}: 3 * {1} = {2}", moduleID, intlist[1][solvenum - 2], 3 * intlist[1][solvenum - 2]);
                 break;
             case 33:
                 intlist[1].Add((3 * (intlist[1][solvenum - 1] + intlist[1][solvenum - 2])) % 10);
@@ -339,7 +358,7 @@ public class ForgetMeLaterScript : MonoBehaviour
                 break;
             case 39:
                 intlist[1].Add((3 * intlist[1][solvenum - 2] + intlist[1][solvenum - 1]) % 10);
-                Debug.LogFormat("[Forget Me Later #{0}]Last input was {1}, Second-last input was {2}: 3 * {2} + {1} = {3}", moduleID, intlist[1][solvenum - 1], intlist[2][solvenum - 2], 3 * intlist[1][solvenum - 2] + intlist[1][solvenum - 1]);
+                Debug.LogFormat("[Forget Me Later #{0}]Last input was {1}, Second-last input was {2}: 3 * {2} + {1} = {3}", moduleID, intlist[1][solvenum - 1], intlist[1][solvenum - 2], 3 * intlist[1][solvenum - 2] + intlist[1][solvenum - 1]);
                 break;
             case 40:
                 intlist[1].Add((intlist[0][solvenum] + 5) % 10);
@@ -414,13 +433,13 @@ public class ForgetMeLaterScript : MonoBehaviour
                 Debug.LogFormat("[Forget Me Later #{0}]Received digit was {1}, Last input was {2}: 9 - |{1} - {2}| = {3}", moduleID, intlist[0][solvenum], intlist[1][solvenum - 1], 9 - Mathf.Abs(intlist[0][solvenum] - intlist[1][solvenum - 1]));
                 break;
             case 58:
-                intlist[1].Add(9 - Mathf.Abs(intlist[1][solvenum - 1] - intlist[1][solvenum - 2]));
-                Debug.LogFormat("[Forget Me Later #{0}]Last input was {1}, Second-last input was {2}: 9 - |{1} - {2}| = {3}", moduleID, intlist[1][solvenum - 1], intlist[1][solvenum - 2], 9 - Mathf.Abs(intlist[1][solvenum - 1] - intlist[1][solvenum - 2]));
-                break;
-            case 59:
                 intlist[1].Add(9 - Mathf.Abs(intlist[0][solvenum] - intlist[1][solvenum - 2]));
                 Debug.LogFormat("[Forget Me Later #{0}]Received digit was {1}, Second-last input was {2}: 9 - |{1} - {2}| = {3}", moduleID, intlist[0][solvenum], intlist[1][solvenum - 2], 9 - Mathf.Abs(intlist[0][solvenum] - intlist[1][solvenum - 2]));
                 break;
+            case 59:
+                intlist[1].Add(9 - Mathf.Abs(intlist[1][solvenum - 1] - intlist[1][solvenum - 2]));
+                Debug.LogFormat("[Forget Me Later #{0}]Last input was {1}, Second-last input was {2}: 9 - |{1} - {2}| = {3}", moduleID, intlist[1][solvenum - 1], intlist[1][solvenum - 2], 9 - Mathf.Abs(intlist[1][solvenum - 1] - intlist[1][solvenum - 2]));
+                break;           
         }
         Debug.LogFormat("[Forget Me Later #{0}]The correct button to press was {1}", moduleID, intlist[1][solvenum]);
     }
@@ -436,9 +455,14 @@ public class ForgetMeLaterScript : MonoBehaviour
             digits[10].text = "-----";
             digits[11].text = "--";
             yield return new WaitForSeconds(3);
+            repeat = false;
         }
         int[] lim = new int[2] { bomb.GetSolvedModuleNames().Where(x => !exempt.Contains(x)).Count(), bomb.GetSolvableModuleNames().Where(x => !exempt.Contains(x)).Count() };
         float[] waitTime = new float[9] { 0.75f, 0.6875f, 0.625f, 0.5625f, 0.5f, 0.4375f, 0.375f, 0.3125f, 0.25f };
+        if(firstsolve == true)
+        {
+            lim[0]--;
+        }
         for (int i = lim[0]; i < lim[1]; i++)
         {
             digits[10].text = "--" + intlist[0][i + 2].ToString() + "--";
@@ -456,12 +480,22 @@ public class ForgetMeLaterScript : MonoBehaviour
                         led.material = ledon[0];
                     }
                 }
-                else
-                {
-                    NextStage();
-                }
             }
         }
+        foreach (Renderer led in leds)
+        {
+            led.material = ledon[0];
+        }
+        leds[(solvenum + 8) % 10].material = ledon[1];
+        if (armed == true)
+        {
+            digits[10].text = "X" + intlist[1][solvenum - 2] + intlist[1][solvenum - 1] + "-X";
+        }
+        else
+        {
+            digits[10].text = "X??-X";
+        }
+        digits[11].text = rule.ToString();
     }
 
     private IEnumerator Transformation()
@@ -497,7 +531,9 @@ public class ForgetMeLaterScript : MonoBehaviour
             }
             yield return new WaitForSeconds(0.1f);
         }
-        NextStage();
+        transformation = false;
+        digits[11].text = rule.ToString();
+        digits[10].text = "X" + intlist[1][solvenum - 2] + intlist[1][solvenum - 1] + "-X";
     }
 
     private IEnumerator SolveAnim()
@@ -515,8 +551,24 @@ public class ForgetMeLaterScript : MonoBehaviour
             if (i == 9)
             {
                 GetComponent<KMBombModule>().HandlePass();
-                moduleSolved = true;
             }
+        }
+        for (int i = 0; i < 51; i++)
+        {
+            bg.material.color += new Color32(4, 4, 4, 0);
+            foreach (Renderer brend in brends)
+            {
+                brend.material.color += new Color32(5, 5, 5, 0);
+            }
+            foreach (Renderer frame in framework)
+            {
+                frame.material.color -= new Color32(5, 5, 5, 0);
+            }
+            for (int j = 0; j < 10; j++)
+            {
+                digits[j].color -= new Color32(5, 0, 0, 0);
+            }
+            yield return new WaitForSeconds(0.1f);
         }
     }
 
@@ -528,10 +580,16 @@ public class ForgetMeLaterScript : MonoBehaviour
     {
         if ("1234567890".Contains(command))
         {
-            if(armed == true)
+            if(armed == true && transformation == false && repeat == false)
             {
                 yield return null;
+                yield return "solve";
+                yield return "strike";
                 buttons["1234567890".IndexOf(command)].OnInteract();
+                if(tpcorrect == true)
+                {
+                    yield return "awardpoints 1";
+                }
             }
             else
             {
